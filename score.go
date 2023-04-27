@@ -65,12 +65,33 @@ func initTemplates() error {
 		return err
 	}
 
+	funcMap := template.FuncMap{
+		"add": func(a int, b int) int {
+			return a + b
+		},
+		"flag": func(country string) string {
+			flags := map[string]string{
+				"DE": "🇩🇪",
+				"DK": "🇩🇰",
+				"TW": "🇹🇼",
+			}
+
+			flag, ok := flags[country]
+
+			if ok {
+				return flag
+			} else {
+				return "🏳️"
+			}
+		},
+	}
+
 	for _, tpl := range entries {
 		if tpl.IsDir() {
 			continue
 		}
 
-		pt, err := template.ParseFS(files, TEMPLATES+"/"+tpl.Name())
+		pt, err := template.New(tpl.Name()).Funcs(funcMap).ParseFS(files, TEMPLATES+"/"+tpl.Name())
 		if err != nil {
 			return err
 		}
@@ -91,14 +112,13 @@ func initDatabase() error {
 		CREATE TABLE IF NOT EXISTS matches (
 			uuid     TEXT NOT NULL PRIMARY KEY,
 			token    TEXT,
-			running  BOOLEAN DEFAULT FALSE,
 			json     TEXT,
-			modified DATETIME DEFAULT (unixepoch())
+			modified DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
 
 		CREATE TRIGGER IF NOT EXISTS update_modified AFTER UPDATE ON matches
 		BEGIN
-			UPDATE matches SET modified = unixepoch() WHERE json = NEW.json;
+			UPDATE matches SET modified = datetime('now') WHERE json = NEW.json;
 		END;
 	`
 
@@ -137,26 +157,51 @@ func updateMatch(raw string, m parser.Match, uuid string, token string) error {
 		return errors.New("cannot open database")
 	}
 
-	var (
-		newToken = sql.NullString{
-			String: token,
-			Valid:  true,
-		}
-		running = true
-	)
+	newToken := sql.NullString{
+		String: token,
+		Valid:  true,
+	}
 
 	if m.Winner != parser.Unknown {
 		// match is finished, delete token
 		newToken.Valid = false
-		running = false
 	}
 
-	if _, err := db.Exec("UPDATE matches SET json = ?, token = ?, running = ? WHERE uuid = ? AND token = ?",
-		raw, newToken, running, uuid, token); err != nil {
+	if _, err := db.Exec("UPDATE matches SET json = ?, token = ? WHERE uuid = ? AND token = ?",
+		raw, newToken, uuid, token); err != nil {
 		return errors.New("cannot update match")
 	}
 
 	return nil
+}
+
+func getRecentMatches() ([]parser.Match, error) {
+	var matches []parser.Match
+
+	db, err := sql.Open("sqlite3", DB_NAME)
+	if err != nil {
+		return matches, err
+	}
+
+	rows, err := db.Query("SELECT json FROM matches WHERE modified >= datetime('now', '-1 day') ORDER BY modified DESC")
+	if err != nil {
+		return matches, err
+	}
+
+	for rows.Next() {
+		var json string
+
+		rows.Scan(&json)
+
+		match, err := parser.Parse(json, false)
+		if err != nil {
+			continue
+		}
+
+		matches = append(matches, match)
+	}
+
+	return matches, nil
 }
 
 func handleAPI(w http.ResponseWriter, r *http.Request) {
@@ -249,7 +294,24 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// todo
+	t, ok := templates["matches.html"]
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	matches, err := getRecentMatches()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	if err := t.Execute(w, matches); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func main() {

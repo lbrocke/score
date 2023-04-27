@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>Badminton Score</title>
+    <style>
+      :root {
+        --color-orange: #ffa824;
+        --color-green: #00fe49;
+      }
+      html, body {
+        margin: 0;
+        background: #000;
+        font-family: sans-serif;
+        color: #fff;
+      }
+      h2 {
+        margin: 2em 0 2em 0;
+        text-align: center;
+      }
+      table {
+        font-size: 18px;
+        table-layout: fixed;
+        margin: 3em auto 3em auto;
+      }
+      td.meta {
+        text-align: right;
+        font-size: .8em;
+      }
+      td.name {
+        max-width: 15em;
+        overflow-x: hidden;
+        white-space: nowrap;
+      }
+      td.name.won {
+        font-weight: bold;
+      }
+      td.team1.name {
+        color: var(--color-orange)
+      }
+      td.team2.name {
+        color: var(--color-green)
+      }
+      td.score {
+        font-size: 2em;
+        height: 1.5em;
+        width: 1.5em;
+        text-align: center;
+        vertical-align: middle;
+      }
+      td.team1 {
+        color: var(--color-orange);
+      }
+      td.score.team1.won {
+        background: var(--color-orange);
+        color: #000;
+      }
+      td.team2 {
+        color: var(--color-green);
+      }
+      td.score.team2.won {
+        background: var(--color-green);
+        color: #000;
+      }
+
+      span.running {
+        animation-name: pulse;
+        animation-duration: 2s;
+        animation-iteration-count: infinite;
+      }
+
+      @keyframes pulse {
+        50% { opacity: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h2>Recent matches</h2>
+
+      {{ range . }}
+      <table>
+        <tr>
+          <td colspan="{{ add (len .Games) 1 }}" class="meta">
+            {{ .Duration }} min 
+            {{ if eq .Winner 0 }}
+              <span class="running">🔴</span>
+            {{ end }}
+          </td>
+        </tr>
+        <tr>
+          <td class="name team1 {{ if eq .Winner 1 }}won{{ end }}">
+            {{ range .Info.Team1 }}
+              {{ flag .Country }} {{ .Player }}<br>
+            {{ end }}
+          </td>
+          {{ range .Games }}
+          <td class="score team1 {{ if eq .Winner 1 }}won{{ end }}">{{ .Team1PointsWon }}</td>
+          {{ end }}
+        </tr>
+        <tr>
+          <td class="name team2 {{ if eq .Winner 2 }}won{{ end }}">
+            {{ range .Info.Team2 }}
+              {{ flag .Country }} {{ .Player }}<br>
+            {{ end }}
+          </td>
+          {{ range .Games }}
+          <td class="score team2 {{ if eq .Winner 2 }}won{{ end }}">{{ .Team2PointsWon }}</td>
+          {{ end }}
+        </tr>
+      </table>
+      {{ end }}
+    </main>
+  </body>
+</html>

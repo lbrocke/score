@@ -2,9 +2,12 @@ package main
 
 import (
 	"database/sql"
+	"embed"
 	"encoding/json"
 	"errors"
+	"html/template"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"score/src/parser"
@@ -16,23 +19,70 @@ import (
 )
 
 const (
-	ERR_INTERNAL_SERVER_ERROR = "Internal Server Error :("
-)
+	PATH_API    = "/api/"
+	PATH_CLIENT = "/c/"
+	PATH_INDEX  = "/"
 
-const (
+	ACTION_NEW    = "new"
+	ACTION_UPDATE = "update"
+
+	// name of SQLite database
 	DB_NAME = "score.sqlite"
 
-	COOKIE_NAME  = "token"
+	// path to templates
+	TEMPLATES = "tpl"
+
+	// name of cookie that is used as client identification
+	COOKIE_NAME = "token"
+	// length of cookie value
 	TOKEN_LENGTH = 64
 )
 
-type ResponseData struct {
-	Message string `json:"message"`
+var (
+	//go:embed tpl/*
+	files     embed.FS
+	templates map[string]*template.Template
+)
+
+type APIRequestData struct {
+	Action string `json:"action"`
+	Match  string `json:"match"`
+	// match data is nested JSON, but must not be decoded automatically
+	Data map[string]any `json:"data"`
+}
+
+type APIResponseData struct {
+	Match string `json:"match"`
+}
+
+func initTemplates() error {
+	if templates == nil {
+		templates = make(map[string]*template.Template)
+	}
+
+	entries, err := fs.ReadDir(files, TEMPLATES)
+	if err != nil {
+		return err
+	}
+
+	for _, tpl := range entries {
+		if tpl.IsDir() {
+			continue
+		}
+
+		pt, err := template.ParseFS(files, TEMPLATES+"/"+tpl.Name())
+		if err != nil {
+			return err
+		}
+
+		templates[tpl.Name()] = pt
+	}
+
+	return nil
 }
 
 func initDatabase() error {
 	db, err := sql.Open("sqlite3", DB_NAME)
-
 	if err != nil {
 		return err
 	}
@@ -59,19 +109,19 @@ func initDatabase() error {
 	return nil
 }
 
-func createNewMatch(token string) (string, error) {
+func createMatch(token string) (string, error) {
 	if len(token) == 0 {
 		return "", errors.New("empty token")
-	}
-
-	db, err := sql.Open("sqlite3", DB_NAME)
-	if err != nil {
-		return "", errors.New("cannot open database")
 	}
 
 	uuid, err := uuid.NewRandom()
 	if err != nil {
 		return "", errors.New("cannot generate match uuid")
+	}
+
+	db, err := sql.Open("sqlite3", DB_NAME)
+	if err != nil {
+		return "", errors.New("cannot open database")
 	}
 
 	if _, err := db.Exec("INSERT INTO matches (uuid, token) VALUES (?, ?)", uuid.String(), token); err != nil {
@@ -109,90 +159,75 @@ func updateMatch(raw string, m parser.Match, uuid string, token string) error {
 	return nil
 }
 
-func respondWithJson(w http.ResponseWriter, message string) {
-	w.Header().Set("Content-Type", "application/json")
-
-	type ResponseData struct {
-		Message string `json:"message"`
+func handleAPI(w http.ResponseWriter, r *http.Request) {
+	if strings.TrimSpace(r.URL.EscapedPath()) != PATH_API {
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}
 
-	json.NewEncoder(w).Encode(ResponseData{
-		Message: message,
-	})
-}
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
 
-func handleMatchNew(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-	case http.MethodPost:
-		token, err := r.Cookie(COOKIE_NAME)
+	token, err := r.Cookie(COOKIE_NAME)
+	if err != nil || len(token.Value) != TOKEN_LENGTH {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
-		if err != nil || len(token.Value) != TOKEN_LENGTH {
-			w.WriteHeader(http.StatusBadRequest)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
-			return
-		}
+	var requestData APIRequestData
 
-		if uuid, err := createNewMatch(token.Value); err == nil {
-			w.WriteHeader(http.StatusCreated)
-			respondWithJson(w, uuid)
-		} else {
+	if err := json.Unmarshal(body, &requestData); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	switch requestData.Action {
+	case ACTION_NEW:
+		uuid, err := createMatch(token.Value)
+		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-		}
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-	}
-}
-
-func handleMatchExisting(w http.ResponseWriter, r *http.Request, uuid string) {
-	switch r.Method {
-	case http.MethodGet:
-		// todo: check if uuid exists, return HTML
-	case http.MethodPost:
-		token, err := r.Cookie(COOKIE_NAME)
-
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-
 			return
 		}
 
-		body, err := io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusCreated)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(APIResponseData{
+			Match: uuid,
+		})
+	case ACTION_UPDATE:
+		// .Data is intentionally not un-marshalled into a struct yet,
+		// but a map[string]any instead.
+		// Combine into JSON and let the parser unmarshal it into a struct
+		data, _ := json.Marshal(requestData.Data)
+
+		match, err := parser.Parse(string(data), true)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			respondWithJson(w, "No match data.")
-
 			return
 		}
 
-		match, err := parser.Parse(string(body), true)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			respondWithJson(w, "Invalid match.")
-
-			return
-		}
-
-		if updateMatch(string(body), match, uuid, token.Value) != nil {
+		if updateMatch(string(data), match, requestData.Match, token.Value) != nil {
 			w.WriteHeader(http.StatusBadRequest)
 		}
 	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-	}
-}
-
-func handleMatch(w http.ResponseWriter, r *http.Request) {
-	uuid := strings.TrimPrefix(r.URL.EscapedPath(), "/m/")
-
-	if len(uuid) == 0 {
-		handleMatchNew(w, r)
-	} else {
-		handleMatchExisting(w, r, uuid)
+		w.WriteHeader(http.StatusBadRequest)
 	}
 }
 
 func handleClient(w http.ResponseWriter, r *http.Request) {
+	if strings.TrimSpace(r.URL.EscapedPath()) != PATH_CLIENT {
+		http.Redirect(w, r, PATH_CLIENT, http.StatusSeeOther)
+		return
+	}
+
 	token, err := r.Cookie(COOKIE_NAME)
 
 	// set cookie if it does not exist yet
@@ -209,19 +244,26 @@ func handleClient(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if strings.TrimSpace(r.URL.EscapedPath()) != PATH_INDEX {
+		http.Redirect(w, r, PATH_INDEX, http.StatusSeeOther)
+		return
+	}
 
-	// todo: send back HTML page with running matches, don't verify JSON
+	// todo
 }
 
 func main() {
+	if err := initTemplates(); err != nil {
+		log.Fatalf("Could not load templates: %s", err)
+	}
+
 	if err := initDatabase(); err != nil {
 		log.Fatalf("Could not load database: %s", err)
 	}
 
-	http.HandleFunc("/m/", handleMatch)
-	http.HandleFunc("/c/", handleClient)
-	http.HandleFunc("/", handleIndex)
+	http.HandleFunc(PATH_API, handleAPI)
+	http.HandleFunc(PATH_CLIENT, handleClient)
+	http.HandleFunc(PATH_INDEX, handleIndex)
 
 	log.Println("Listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil)) // todo: get port from argv

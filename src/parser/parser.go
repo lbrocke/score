@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/biter777/countries"
 )
 
 const (
@@ -150,16 +152,7 @@ func isValidMode(mode Mode) bool {
 }
 
 func isValidCountry(country string) bool {
-	switch country {
-	case CountryDE:
-		fallthrough
-	case CountryDK:
-		fallthrough
-	case CountryTW:
-		return true
-	default:
-		return false
-	}
+	return countries.ByName(country) != countries.Unknown
 }
 
 func isValidName(name string) bool {

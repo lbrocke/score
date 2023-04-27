@@ -13,6 +13,7 @@ import (
 	"score/src/parser"
 	"strings"
 
+	"github.com/biter777/countries"
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/thanhpk/randstr"
@@ -70,19 +71,7 @@ func initTemplates() error {
 			return a + b
 		},
 		"flag": func(country string) string {
-			flags := map[string]string{
-				"DE": "🇩🇪",
-				"DK": "🇩🇰",
-				"TW": "🇹🇼",
-			}
-
-			flag, ok := flags[country]
-
-			if ok {
-				return flag
-			} else {
-				return "🏳️"
-			}
+			return countries.ByName(country).Emoji()
 		},
 	}
 

@@ -64,6 +64,9 @@
         background: var(--color-green);
         color: #000;
       }
+      p.center {
+        text-align: center;
+      }
 
       span.running {
         animation-name: pulse;
@@ -79,6 +82,10 @@
   <body>
     <main>
       <h2>Recent matches</h2>
+
+      {{ if eq (len .) 0 }}
+        <p class="center">No matches :(</p>
+      {{ end }}
 
       {{ range . }}
       <table>

@@ -97,6 +97,8 @@ func initDatabase() error {
 		return err
 	}
 
+	defer db.Close()
+
 	stmt := `
 		CREATE TABLE IF NOT EXISTS matches (
 			uuid     TEXT NOT NULL PRIMARY KEY,
@@ -133,6 +135,8 @@ func createMatch(token string) (string, error) {
 		return "", errors.New("cannot open database")
 	}
 
+	defer db.Close()
+
 	if _, err := db.Exec("INSERT INTO matches (uuid, token) VALUES (?, ?)", uuid.String(), token); err != nil {
 		return "", errors.New("cannot create match")
 	}
@@ -145,6 +149,8 @@ func updateMatch(raw string, m parser.Match, uuid string, token string) error {
 	if err != nil {
 		return errors.New("cannot open database")
 	}
+
+	defer db.Close()
 
 	newToken := sql.NullString{
 		String: token,
@@ -171,6 +177,8 @@ func getRecentMatches() ([]parser.Match, error) {
 	if err != nil {
 		return matches, err
 	}
+
+	defer db.Close()
 
 	rows, err := db.Query("SELECT json FROM matches WHERE modified >= datetime('now', '-1 day') ORDER BY modified DESC")
 	if err != nil {

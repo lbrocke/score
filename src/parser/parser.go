@@ -56,14 +56,6 @@ const (
 	Mode21MaxGames  = 3
 )
 
-type Country string
-
-const (
-	CountryDE = "DE"
-	CountryDK = "DK"
-	CountryTW = "TW"
-)
-
 func numWinPoints(mode Mode) int {
 	switch mode {
 	case Mode11:

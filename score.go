@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"score/src/parser"
 	"strings"
 
@@ -312,18 +313,23 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	args := os.Args[1:]
+	if len(args) == 0 {
+		log.Fatalln("Please provide the host/ip and port to listen on, e.g.\n\t$ score localhost:8080")
+	}
+
 	if err := initTemplates(); err != nil {
-		log.Fatalf("Could not load templates: %s", err)
+		log.Fatalf("Could not load templates: %s\n", err)
 	}
 
 	if err := initDatabase(); err != nil {
-		log.Fatalf("Could not load database: %s", err)
+		log.Fatalf("Could not load database: %s\n", err)
 	}
 
 	http.HandleFunc(PATH_API, handleAPI)
 	http.HandleFunc(PATH_CLIENT, handleClient)
 	http.HandleFunc(PATH_INDEX, handleIndex)
 
-	log.Println("Listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil)) // todo: get port from argv
+	log.Printf("Listening on http://%s\n", args[0])
+	log.Fatal(http.ListenAndServe(args[0], nil))
 }

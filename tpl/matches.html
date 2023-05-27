@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <link rel="icon" href="data:,">
-    <title>Badminton Score</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22><text y=%2232%22 font-size=%2232%22>🏸</text></svg>">
+    <title>Badminton Live Score</title>
     <style>
       :root {
         --color-orange: #ffa824;
@@ -17,8 +17,16 @@
         color: #fff;
       }
       h2 {
-        margin: 2em 0 2em 0;
+        margin: 2em 0 0em 0;
         text-align: center;
+      }
+      h5 {
+        margin: 0 0 2em 0;
+        text-align: center;
+      }
+      a:link, a:visited {
+        color: #999;
+        text-decoration: underline;
       }
       table {
         font-size: 18px;
@@ -82,6 +90,7 @@
   <body>
     <main>
       <h2>Recent matches</h2>
+      <h5><a href="/c/">+ new match</a></h5>
 
       {{ if eq (len .) 0 }}
         <p class="center">No matches :(</p>

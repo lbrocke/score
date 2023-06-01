@@ -205,7 +205,7 @@ func validateGames(games []Game, mode Mode) error {
 
 			// check if Team2 has won
 			if scoreTeam2 == tiePoints || (scoreTeam2 >= winPoints && scoreTeam2-scoreTeam1 >= 2) {
-				winner = append(winner, Team1)
+				winner = append(winner, Team2)
 
 				// check if points were counted afterwards
 				if j != len(game.Points)-1 {

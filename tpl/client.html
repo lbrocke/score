@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22><text y=%2232%22 font-size=%2232%22>🏸</text></svg>">
+    <title>Badminton Live Score</title>
+    <style>
+      :root {
+        --color-green: #1e8733;
+        --square-size: 10rem;
+      }
+      html, body {
+        margin: 0;
+        background: #fff;
+        font-family: sans-serif;
+        color: #fff;
+        height: 100%;
+        text-align: center;
+        -webkit-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        touch-action: manipulation;
+      }
+
+      .lock {
+        position: absolute;
+        height: 100%;
+        width: 100%;
+        -webkit-box-sizing: border-box;
+        -moz-box-sizing: border-box;
+        box-sizing: border-box;
+        text-align: center;
+        background: black;
+        padding-top: 10%;
+      }
+      #size-lock {
+        display: none;
+        z-index: 99;
+      }
+      #portrait-lock {
+        display: none;
+        z-index: 98;
+      }
+
+      table#setup, table#counter {
+        width: 100%;
+        height: 100%;
+      }
+
+      table#setup {
+        background: black;
+        font-size: 2em;
+      }
+      table#setup #settings {
+        margin: 0 auto;
+      }
+      table#setup select, input, button {
+        font-size: 2rem;
+        width: 16rem;
+      }
+
+      table#counter {
+        table-layout: fixed;
+      }
+      table#counter td {
+        background: var(--color-green);
+        border: 2px solid #fff;
+      }      
+      table#counter .square {
+        height: var(--square-size);
+        width: var(--square-size);
+        font-size: calc(.5 * var(--square-size));
+      }
+      table#counter .square-width {
+        width: var(--square-size);
+      }
+
+      table#counter .team {
+        height: calc(var(--square-size) / 2);
+        font-size: 2vw;
+      }
+      table#counter .score {
+        background: black;
+        font-size: calc(2 * var(--square-size));
+      }
+      table#counter .set {
+        background: black;
+        font-size: calc(.75 * var(--square-size)) !important;
+      }
+      table#counter .button {
+        font-size: calc(.6 * var(--square-size));
+        font-weight: bold;
+      }
+
+      @media screen and (orientation: portrait) {
+        #portrait-lock {
+          display: block;
+        }
+        table {
+          display: none;
+        }
+      }
+      @media screen and (orientation: portrait) and ((max-device-width: 450px) or (max-device-height: 250px)) {
+        #size-lock {
+          display: block;
+        }
+        table {
+          display: none;
+        }
+      }
+
+      @media screen and (max-device-width: 1280px) {
+        :root {
+          --square-size: 8rem;
+        }
+      }
+
+      @media screen and (max-device-width: 1024px) {
+        :root {
+          --square-size: 6.5rem;
+        }
+      }
+
+      @media screen and (max-device-width: 768px) {
+        :root {
+          --square-size: 5rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="size-lock" class="lock">
+      Your screen is too small.
+    </div>
+    <div id="portrait-lock" class="lock">
+      Please rotate your device to landscape mode.
+    </div>
+
+    <table id="setup" style="display: table;">
+      <tr>
+        <td colspan="3">
+          <table id="settings">
+            <tr>
+              <td><label for="mode">Mode:</label></td>
+              <td>
+                <select id="mode">
+                  <option value="11">11 Pts., best of 5</option>
+                  <option value="21" selected>21 Pts., best of 3</option>
+                </select>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <label for="discipline">Discipline:</label>
+              </td>
+              <td>
+                <select id="discipline" autocomplete="off" onchange="onDisciplineChange(this)">
+                  <option value="singles" selected>Singles</option>
+                  <option value="doubles">Doubles</option>
+                </select>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <select id="team1country1" class="countries" autocomplete="off"></select>
+          <input id="team1name1" type="text" placeholder="Player 1" autocomplete="off">
+          <br>
+          <select id="team1country2" class="countries doublesonly" autocomplete="off" disabled></select>
+          <input id="team1name2" class="doublesonly" type="text" placeholder="Player 2" autocomplete="off" disabled>
+        </td>
+        <td>vs.</td>
+        <td>
+          <select id="team2country1" class="countries" autocomplete="off"></select>
+          <input id="team2name1" type="text" placeholder="Player 1" autocomplete="off">
+          <br>
+          <select id="team2country2" class="countries doublesonly" autocomplete="off" disabled></select>
+          <input id="team2name2" class="doublesonly" type="text" placeholder="Player 2" autocomplete="off" disabled>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="3">
+          <button onclick="onPlay()" >🏸 Play!</button>
+        </td>
+      </tr>
+    </table>
+
+    <table id="counter" style="display: none;">
+      <colgroup>
+        <col />
+        <col class="square-width" />
+        <col class="square-width" />
+        <col />
+      </colgroup>
+      <tr class="team">
+        <td id="team-left" colspan="2"></td>
+        <td id="team-right" colspan="2"></td>
+      </tr>
+      <tr>
+        <td id="score-left" onclick="onScoreLeft()" class="score" rowspan="4">0</td>
+        <td id="set-left" class="set square">0</td>
+        <td id="set-right" class="set square">0</td>
+        <td id="score-right" onclick="onScoreRight()" class="score" rowspan="4">0</td>
+      </tr>
+      <tr>
+        <td onclick="onSwitch()" class="button" colspan="2">⇄</td>
+      </tr>
+      <tr>
+        <td onclick="onEnd()" class="button" colspan="2">✕</td>
+      </tr>
+      <tr>
+        <td onclick="onUndoLeft()" class="square">↶</td>
+        <td onclick="onUndoRight()" class="square">↶</td>
+      </tr>
+    </table>
+    <script>
+      const TEAM1V = 1;
+      const TEAM2V = 2;
+      const COUNTRIES = '[{"name":"Afghanistan","code":"AF","emoji":"🇦🇫"},{"name":"Åland Islands","code":"AX","emoji":"🇦🇽"},{"name":"Albania","code":"AL","emoji":"🇦🇱"},{"name":"Algeria","code":"DZ","emoji":"🇩🇿"},{"name":"American Samoa","code":"AS","emoji":"🇦🇸"},{"name":"Andorra","code":"AD","emoji":"🇦🇩"},{"name":"Angola","code":"AO","emoji":"🇦🇴"},{"name":"Anguilla","code":"AI","emoji":"🇦🇮"},{"name":"Antarctica","code":"AQ","emoji":"🇦🇶"},{"name":"Antigua & Barbuda","code":"AG","emoji":"🇦🇬"},{"name":"Argentina","code":"AR","emoji":"🇦🇷"},{"name":"Armenia","code":"AM","emoji":"🇦🇲"},{"name":"Aruba","code":"AW","emoji":"🇦🇼"},{"name":"Ascension Island","code":"AC","emoji":"🇦🇨"},{"name":"Australia","code":"AU","emoji":"🇦🇺"},{"name":"Austria","code":"AT","emoji":"🇦🇹"},{"name":"Azerbaijan","code":"AZ","emoji":"🇦🇿"},{"name":"Bahamas","code":"BS","emoji":"🇧🇸"},{"name":"Bahrain","code":"BH","emoji":"🇧🇭"},{"name":"Bangladesh","code":"BD","emoji":"🇧🇩"},{"name":"Barbados","code":"BB","emoji":"🇧🇧"},{"name":"Belarus","code":"BY","emoji":"🇧🇾"},{"name":"Belgium","code":"BE","emoji":"🇧🇪"},{"name":"Belize","code":"BZ","emoji":"🇧🇿"},{"name":"Benin","code":"BJ","emoji":"🇧🇯"},{"name":"Bermuda","code":"BM","emoji":"🇧🇲"},{"name":"Bhutan","code":"BT","emoji":"🇧🇹"},{"name":"Bolivia","code":"BO","emoji":"🇧🇴"},{"name":"Bosnia & Herzegovina","code":"BA","emoji":"🇧🇦"},{"name":"Botswana","code":"BW","emoji":"🇧🇼"},{"name":"Bouvet Island","code":"BV","emoji":"🇧🇻"},{"name":"Brazil","code":"BR","emoji":"🇧🇷"},{"name":"British Indian Ocean Territory","code":"IO","emoji":"🇮🇴"},{"name":"British Virgin Islands","code":"VG","emoji":"🇻🇬"},{"name":"Brunei","code":"BN","emoji":"🇧🇳"},{"name":"Bulgaria","code":"BG","emoji":"🇧🇬"},{"name":"Burkina Faso","code":"BF","emoji":"🇧🇫"},{"name":"Burundi","code":"BI","emoji":"🇧🇮"},{"name":"Cambodia","code":"KH","emoji":"🇰🇭"},{"name":"Cameroon","code":"CM","emoji":"🇨🇲"},{"name":"Canada","code":"CA","emoji":"🇨🇦"},{"name":"Canary Islands","code":"IC","emoji":"🇮🇨"},{"name":"Cape Verde","code":"CV","emoji":"🇨🇻"},{"name":"Caribbean Netherlands","code":"BQ","emoji":"🇧🇶"},{"name":"Cayman Islands","code":"KY","emoji":"🇰🇾"},{"name":"Central African Republic","code":"CF","emoji":"🇨🇫"},{"name":"Ceuta & Melilla","code":"EA","emoji":"🇪🇦"},{"name":"Chad","code":"TD","emoji":"🇹🇩"},{"name":"Chile","code":"CL","emoji":"🇨🇱"},{"name":"China","code":"CN","emoji":"🇨🇳"},{"name":"Christmas Island","code":"CX","emoji":"🇨🇽"},{"name":"Clipperton Island","code":"CP","emoji":"🇨🇵"},{"name":"Cocos (Keeling) Islands","code":"CC","emoji":"🇨🇨"},{"name":"Colombia","code":"CO","emoji":"🇨🇴"},{"name":"Comoros","code":"KM","emoji":"🇰🇲"},{"name":"Congo - Brazzaville","code":"CG","emoji":"🇨🇬"},{"name":"Congo - Kinshasa","code":"CD","emoji":"🇨🇩"},{"name":"Cook Islands","code":"CK","emoji":"🇨🇰"},{"name":"Costa Rica","code":"CR","emoji":"🇨🇷"},{"name":"Croatia","code":"HR","emoji":"🇭🇷"},{"name":"Cuba","code":"CU","emoji":"🇨🇺"},{"name":"Curaçao","code":"CW","emoji":"🇨🇼"},{"name":"Cyprus","code":"CY","emoji":"🇨🇾"},{"name":"Czechia","code":"CZ","emoji":"🇨🇿"},{"name":"Côte d’Ivoire","code":"CI","emoji":"🇨🇮"},{"name":"Denmark","code":"DK","emoji":"🇩🇰"},{"name":"Diego Garcia","code":"DG","emoji":"🇩🇬"},{"name":"Djibouti","code":"DJ","emoji":"🇩🇯"},{"name":"Dominica","code":"DM","emoji":"🇩🇲"},{"name":"Dominican Republic","code":"DO","emoji":"🇩🇴"},{"name":"Ecuador","code":"EC","emoji":"🇪🇨"},{"name":"Egypt","code":"EG","emoji":"🇪🇬"},{"name":"El Salvador","code":"SV","emoji":"🇸🇻"},{"name":"England","code":"ENGLAND","emoji":"🏴󠁧󠁢󠁥󠁮󠁧󠁿"},{"name":"Equatorial Guinea","code":"GQ","emoji":"🇬🇶"},{"name":"Eritrea","code":"ER","emoji":"🇪🇷"},{"name":"Estonia","code":"EE","emoji":"🇪🇪"},{"name":"Eswatini","code":"SZ","emoji":"🇸🇿"},{"name":"Ethiopia","code":"ET","emoji":"🇪🇹"},{"name":"European Union","code":"EU","emoji":"🇪🇺"},{"name":"Falkland Islands","code":"FK","emoji":"🇫🇰"},{"name":"Faroe Islands","code":"FO","emoji":"🇫🇴"},{"name":"Fiji","code":"FJ","emoji":"🇫🇯"},{"name":"Finland","code":"FI","emoji":"🇫🇮"},{"name":"France","code":"FR","emoji":"🇫🇷"},{"name":"French Guiana","code":"GF","emoji":"🇬🇫"},{"name":"French Polynesia","code":"PF","emoji":"🇵🇫"},{"name":"French Southern Territories","code":"TF","emoji":"🇹🇫"},{"name":"Gabon","code":"GA","emoji":"🇬🇦"},{"name":"Gambia","code":"GM","emoji":"🇬🇲"},{"name":"Georgia","code":"GE","emoji":"🇬🇪"},{"name":"Germany","code":"DE","emoji":"🇩🇪"},{"name":"Ghana","code":"GH","emoji":"🇬🇭"},{"name":"Gibraltar","code":"GI","emoji":"🇬🇮"},{"name":"Greece","code":"GR","emoji":"🇬🇷"},{"name":"Greenland","code":"GL","emoji":"🇬🇱"},{"name":"Grenada","code":"GD","emoji":"🇬🇩"},{"name":"Guadeloupe","code":"GP","emoji":"🇬🇵"},{"name":"Guam","code":"GU","emoji":"🇬🇺"},{"name":"Guatemala","code":"GT","emoji":"🇬🇹"},{"name":"Guernsey","code":"GG","emoji":"🇬🇬"},{"name":"Guinea","code":"GN","emoji":"🇬🇳"},{"name":"Guinea-Bissau","code":"GW","emoji":"🇬🇼"},{"name":"Guyana","code":"GY","emoji":"🇬🇾"},{"name":"Haiti","code":"HT","emoji":"🇭🇹"},{"name":"Heard & McDonald Islands","code":"HM","emoji":"🇭🇲"},{"name":"Honduras","code":"HN","emoji":"🇭🇳"},{"name":"Hong Kong SAR China","code":"HK","emoji":"🇭🇰"},{"name":"Hungary","code":"HU","emoji":"🇭🇺"},{"name":"Iceland","code":"IS","emoji":"🇮🇸"},{"name":"India","code":"IN","emoji":"🇮🇳"},{"name":"Indonesia","code":"ID","emoji":"🇮🇩"},{"name":"Iran","code":"IR","emoji":"🇮🇷"},{"name":"Iraq","code":"IQ","emoji":"🇮🇶"},{"name":"Ireland","code":"IE","emoji":"🇮🇪"},{"name":"Isle of Man","code":"IM","emoji":"🇮🇲"},{"name":"Israel","code":"IL","emoji":"🇮🇱"},{"name":"Italy","code":"IT","emoji":"🇮🇹"},{"name":"Jamaica","code":"JM","emoji":"🇯🇲"},{"name":"Japan","code":"JP","emoji":"🇯🇵"},{"name":"Jersey","code":"JE","emoji":"🇯🇪"},{"name":"Jordan","code":"JO","emoji":"🇯🇴"},{"name":"Kazakhstan","code":"KZ","emoji":"🇰🇿"},{"name":"Kenya","code":"KE","emoji":"🇰🇪"},{"name":"Kiribati","code":"KI","emoji":"🇰🇮"},{"name":"Kosovo","code":"XK","emoji":"🇽🇰"},{"name":"Kuwait","code":"KW","emoji":"🇰🇼"},{"name":"Kyrgyzstan","code":"KG","emoji":"🇰🇬"},{"name":"Laos","code":"LA","emoji":"🇱🇦"},{"name":"Latvia","code":"LV","emoji":"🇱🇻"},{"name":"Lebanon","code":"LB","emoji":"🇱🇧"},{"name":"Lesotho","code":"LS","emoji":"🇱🇸"},{"name":"Liberia","code":"LR","emoji":"🇱🇷"},{"name":"Libya","code":"LY","emoji":"🇱🇾"},{"name":"Liechtenstein","code":"LI","emoji":"🇱🇮"},{"name":"Lithuania","code":"LT","emoji":"🇱🇹"},{"name":"Luxembourg","code":"LU","emoji":"🇱🇺"},{"name":"Macao SAR China","code":"MO","emoji":"🇲🇴"},{"name":"Madagascar","code":"MG","emoji":"🇲🇬"},{"name":"Malawi","code":"MW","emoji":"🇲🇼"},{"name":"Malaysia","code":"MY","emoji":"🇲🇾"},{"name":"Maldives","code":"MV","emoji":"🇲🇻"},{"name":"Mali","code":"ML","emoji":"🇲🇱"},{"name":"Malta","code":"MT","emoji":"🇲🇹"},{"name":"Marshall Islands","code":"MH","emoji":"🇲🇭"},{"name":"Martinique","code":"MQ","emoji":"🇲🇶"},{"name":"Mauritania","code":"MR","emoji":"🇲🇷"},{"name":"Mauritius","code":"MU","emoji":"🇲🇺"},{"name":"Mayotte","code":"YT","emoji":"🇾🇹"},{"name":"Mexico","code":"MX","emoji":"🇲🇽"},{"name":"Micronesia","code":"FM","emoji":"🇫🇲"},{"name":"Moldova","code":"MD","emoji":"🇲🇩"},{"name":"Monaco","code":"MC","emoji":"🇲🇨"},{"name":"Mongolia","code":"MN","emoji":"🇲🇳"},{"name":"Montenegro","code":"ME","emoji":"🇲🇪"},{"name":"Montserrat","code":"MS","emoji":"🇲🇸"},{"name":"Morocco","code":"MA","emoji":"🇲🇦"},{"name":"Mozambique","code":"MZ","emoji":"🇲🇿"},{"name":"Myanmar (Burma)","code":"MM","emoji":"🇲🇲"},{"name":"Namibia","code":"NA","emoji":"🇳🇦"},{"name":"Nauru","code":"NR","emoji":"🇳🇷"},{"name":"Nepal","code":"NP","emoji":"🇳🇵"},{"name":"Netherlands","code":"NL","emoji":"🇳🇱"},{"name":"New Caledonia","code":"NC","emoji":"🇳🇨"},{"name":"New Zealand","code":"NZ","emoji":"🇳🇿"},{"name":"Nicaragua","code":"NI","emoji":"🇳🇮"},{"name":"Niger","code":"NE","emoji":"🇳🇪"},{"name":"Nigeria","code":"NG","emoji":"🇳🇬"},{"name":"Niue","code":"NU","emoji":"🇳🇺"},{"name":"Norfolk Island","code":"NF","emoji":"🇳🇫"},{"name":"North Korea","code":"KP","emoji":"🇰🇵"},{"name":"North Macedonia","code":"MK","emoji":"🇲🇰"},{"name":"Northern Mariana Islands","code":"MP","emoji":"🇲🇵"},{"name":"Norway","code":"NO","emoji":"🇳🇴"},{"name":"Oman","code":"OM","emoji":"🇴🇲"},{"name":"Pakistan","code":"PK","emoji":"🇵🇰"},{"name":"Palau","code":"PW","emoji":"🇵🇼"},{"name":"Palestinian Territories","code":"PS","emoji":"🇵🇸"},{"name":"Panama","code":"PA","emoji":"🇵🇦"},{"name":"Papua New Guinea","code":"PG","emoji":"🇵🇬"},{"name":"Paraguay","code":"PY","emoji":"🇵🇾"},{"name":"Peru","code":"PE","emoji":"🇵🇪"},{"name":"Philippines","code":"PH","emoji":"🇵🇭"},{"name":"Pitcairn Islands","code":"PN","emoji":"🇵🇳"},{"name":"Poland","code":"PL","emoji":"🇵🇱"},{"name":"Portugal","code":"PT","emoji":"🇵🇹"},{"name":"Puerto Rico","code":"PR","emoji":"🇵🇷"},{"name":"Qatar","code":"QA","emoji":"🇶🇦"},{"name":"Romania","code":"RO","emoji":"🇷🇴"},{"name":"Russia","code":"RU","emoji":"🇷🇺"},{"name":"Rwanda","code":"RW","emoji":"🇷🇼"},{"name":"Réunion","code":"RE","emoji":"🇷🇪"},{"name":"Samoa","code":"WS","emoji":"🇼🇸"},{"name":"San Marino","code":"SM","emoji":"🇸🇲"},{"name":"Saudi Arabia","code":"SA","emoji":"🇸🇦"},{"name":"Scotland","code":"SCOTLAND","emoji":"🏴󠁧󠁢󠁳󠁣󠁴󠁿"},{"name":"Senegal","code":"SN","emoji":"🇸🇳"},{"name":"Serbia","code":"RS","emoji":"🇷🇸"},{"name":"Seychelles","code":"SC","emoji":"🇸🇨"},{"name":"Sierra Leone","code":"SL","emoji":"🇸🇱"},{"name":"Singapore","code":"SG","emoji":"🇸🇬"},{"name":"Sint Maarten","code":"SX","emoji":"🇸🇽"},{"name":"Slovakia","code":"SK","emoji":"🇸🇰"},{"name":"Slovenia","code":"SI","emoji":"🇸🇮"},{"name":"Solomon Islands","code":"SB","emoji":"🇸🇧"},{"name":"Somalia","code":"SO","emoji":"🇸🇴"},{"name":"South Africa","code":"ZA","emoji":"🇿🇦"},{"name":"South Georgia & South Sandwich Islands","code":"GS","emoji":"🇬🇸"},{"name":"South Korea","code":"KR","emoji":"🇰🇷"},{"name":"South Sudan","code":"SS","emoji":"🇸🇸"},{"name":"Spain","code":"ES","emoji":"🇪🇸"},{"name":"Sri Lanka","code":"LK","emoji":"🇱🇰"},{"name":"St. Barthélemy","code":"BL","emoji":"🇧🇱"},{"name":"St. Helena","code":"SH","emoji":"🇸🇭"},{"name":"St. Kitts & Nevis","code":"KN","emoji":"🇰🇳"},{"name":"St. Lucia","code":"LC","emoji":"🇱🇨"},{"name":"St. Martin","code":"MF","emoji":"🇲🇫"},{"name":"St. Pierre & Miquelon","code":"PM","emoji":"🇵🇲"},{"name":"St. Vincent & Grenadines","code":"VC","emoji":"🇻🇨"},{"name":"Sudan","code":"SD","emoji":"🇸🇩"},{"name":"Suriname","code":"SR","emoji":"🇸🇷"},{"name":"Svalbard & Jan Mayen","code":"SJ","emoji":"🇸🇯"},{"name":"Sweden","code":"SE","emoji":"🇸🇪"},{"name":"Switzerland","code":"CH","emoji":"🇨🇭"},{"name":"Syria","code":"SY","emoji":"🇸🇾"},{"name":"São Tomé & Príncipe","code":"ST","emoji":"🇸🇹"},{"name":"Taiwan","code":"TW","emoji":"🇹🇼"},{"name":"Tajikistan","code":"TJ","emoji":"🇹🇯"},{"name":"Tanzania","code":"TZ","emoji":"🇹🇿"},{"name":"Thailand","code":"TH","emoji":"🇹🇭"},{"name":"Timor-Leste","code":"TL","emoji":"🇹🇱"},{"name":"Togo","code":"TG","emoji":"🇹🇬"},{"name":"Tokelau","code":"TK","emoji":"🇹🇰"},{"name":"Tonga","code":"TO","emoji":"🇹🇴"},{"name":"Trinidad & Tobago","code":"TT","emoji":"🇹🇹"},{"name":"Tristan da Cunha","code":"TA","emoji":"🇹🇦"},{"name":"Tunisia","code":"TN","emoji":"🇹🇳"},{"name":"Turkey","code":"TR","emoji":"🇹🇷"},{"name":"Turkmenistan","code":"TM","emoji":"🇹🇲"},{"name":"Turks & Caicos Islands","code":"TC","emoji":"🇹🇨"},{"name":"Tuvalu","code":"TV","emoji":"🇹🇻"},{"name":"U.S. Outlying Islands","code":"UM","emoji":"🇺🇲"},{"name":"U.S. Virgin Islands","code":"VI","emoji":"🇻🇮"},{"name":"Uganda","code":"UG","emoji":"🇺🇬"},{"name":"Ukraine","code":"UA","emoji":"🇺🇦"},{"name":"United Arab Emirates","code":"AE","emoji":"🇦🇪"},{"name":"United Kingdom","code":"GB","emoji":"🇬🇧"},{"name":"United Nations","code":"UN","emoji":"🇺🇳"},{"name":"United States","code":"US","emoji":"🇺🇸"},{"name":"Uruguay","code":"UY","emoji":"🇺🇾"},{"name":"Uzbekistan","code":"UZ","emoji":"🇺🇿"},{"name":"Vanuatu","code":"VU","emoji":"🇻🇺"},{"name":"Vatican City","code":"VA","emoji":"🇻🇦"},{"name":"Venezuela","code":"VE","emoji":"🇻🇪"},{"name":"Vietnam","code":"VN","emoji":"🇻🇳"},{"name":"Wales","code":"WALES","emoji":"🏴󠁧󠁢󠁷󠁬󠁳󠁿"},{"name":"Wallis & Futuna","code":"WF","emoji":"🇼🇫"},{"name":"Western Sahara","code":"EH","emoji":"🇪🇭"},{"name":"Yemen","code":"YE","emoji":"🇾🇪"},{"name":"Zambia","code":"ZM","emoji":"🇿🇲"},{"name":"Zimbabwe","code":"ZW","emoji":"🇿🇼"}]';
+      const MODES = new Map(Object.entries({
+        "11": {
+          winPoints: 11,
+          tiePoints: 15,
+          winGames: 3,
+          maxGames: 5
+        },
+        "21": {
+          winPoints: 21,
+          tiePoints: 30,
+          winGames: 2,
+          maxGames: 3
+        }
+      }));
+
+      // false: team 1 on left, team 2 on right
+      // true:  team 1 on right, team 2 on left
+      let switched = false;
+      let match = {};
+      let matchUuid = "";
+
+      const onDisciplineChange = (elem) => {
+        let isSingles = elem.value == "singles";
+
+        [].forEach.call(
+          document.getElementsByClassName("doublesonly"),
+          (el) => {
+            el.disabled = isSingles;
+          }
+        );
+      }
+
+      const onPlay = () => {
+        const discipline = document.getElementById("discipline").value;
+
+        const team1name1 = document.getElementById("team1name1").value.trim();
+        const team1name2 = document.getElementById("team1name2").value.trim();
+        const team2name1 = document.getElementById("team2name1").value.trim();
+        const team2name2 = document.getElementById("team2name2").value.trim();
+
+        if (team1name1 == "" || team2name1 == "")
+          return;
+        
+        let team1 = [{
+          country: document.getElementById("team1country1").value.trim(),
+          player: team1name1
+        }];
+        let team2 = [{
+          country: document.getElementById("team2country1").value.trim(),
+          player: team2name1
+        }];
+        
+        if (discipline === "doubles") {
+          if (team1name2 == "" || team2name2 == "")
+            return;
+
+          team1.push({
+            country: document.getElementById("team1country2").value.trim(),
+            player: team1name2
+          });
+          team2.push({
+            country: document.getElementById("team2country2").value.trim(),
+            player: team2name2
+          });
+        }
+        
+        match = {
+          info: {
+            mode: parseInt(document.getElementById("mode").value),
+            team1: team1,
+            team2: team2,
+            start: parseInt(Date.now() / 1000),
+            end: null
+          },
+          games: [
+            {
+              points: []
+            }
+          ]
+        }
+
+        showCounter();
+
+        initTransmit(() => {
+          if (matchUuid == "") {
+            alert("Match could not be transmitted to server. You can still count scores, however no live score is available for others.");
+          } else {
+            setInterval(transmit, 10000);
+          }
+        });
+      }
+
+      const showCounter = () => {
+        document.getElementById("setup").style.display = "none";
+        document.getElementById("counter").style.display = "table";
+
+        render();
+      }
+
+      const onScoreLeft = () => {
+        score(!switched ? TEAM1V : TEAM2V);
+      }
+
+      const onScoreRight = () => {
+        score(!switched ? TEAM2V : TEAM1V);
+      }
+
+      const score = (team) => {
+        match.games[match.games.length - 1].points.push(team);
+        renderScores();
+
+        // Determine whether game or match is finished
+        const currentGame = match.games.slice(-1)[0] ?? { points: [] };
+
+        const ownScore = currentGame.points.filter((p) => p == team).length;
+        const otherScore = currentGame.points.filter((p) => p != team).length;
+
+        const winPoints = MODES.get(match.info.mode.toString()).winPoints;
+        const tiePoints = MODES.get(match.info.mode.toString()).tiePoints;
+
+        if (ownScore == tiePoints || (ownScore >= winPoints && ownScore - otherScore >= 2)) {
+          // Game was won by 'team', check whether whole match is won
+
+          const lastPoints = match.games.map((g) => g.points.slice(-1));
+
+          const ownWonGames = lastPoints.filter((p) => p == team).length
+          const otherWonGames = lastPoints.filter((p) => p != team).length;
+
+          const winGames = MODES.get(match.info.mode.toString()).winGames;
+          const maxGames = MODES.get(match.info.mode.toString()).maxGames;
+
+          if (ownWonGames == winGames || (ownWonGames + otherWonGames) == maxGames) {
+            // Match was won by 'team'
+            const scores = [];
+            match.games.map((g) => g.points).forEach((pts) => {
+              scoreTeam1 = pts.filter((p) => p == TEAM1V).length;
+              scoreTeam2 = pts.filter((p) => p == TEAM2V).length;
+
+              scores.push(
+                (team == TEAM1V)
+                ? scoreTeam1 + ":" + scoreTeam2
+                : scoreTeam2 + ":" + scoreTeam1
+              );
+            });
+
+            if (confirm("Please confirm: Match won by " + getTeamName(team) + " (" + scores.join(", ") + ").")) {
+              match.info.end = parseInt(Date.now() / 1000);
+              
+              transmit(() => {
+                window.location.href = "/";
+              });
+            } else {
+              undo(team);
+              renderScores();
+            }
+          } else {
+            // Game was won but there is another game
+            if (confirm("Please confirm: Game won by " + getTeamName(team) + " (" + ownScore + ":" + otherScore + ").")) {
+              match.games.push({ points: [] });
+              switched = !switched;
+
+              render();
+            } else {
+              undo(team);
+              renderScores();
+            }
+          }
+        }
+      }
+
+      const onSwitch = () => {
+        switched = !switched;
+        render();
+      }
+
+      const onEnd = () => {
+        if (confirm("End match without a winner?")) {
+          window.location.href = "/";
+        }
+      }
+
+      const onUndoLeft = () => {
+        undo(!switched ? TEAM1V : TEAM2V);
+      }
+
+      const onUndoRight = () => {
+        undo(!switched ? TEAM2V : TEAM1V);
+      }
+
+      const undo = (team) => {
+        const lastOccurrence = match.games[match.games.length - 1].points.lastIndexOf(team);
+
+        if (lastOccurrence !== -1) {
+          match.games[match.games.length - 1].points.splice(lastOccurrence, 1);
+        }
+
+        renderScores();
+      }
+
+      const render = () => {
+        renderTeams();
+        renderScores();
+        renderSets();
+      }
+
+      const getTeamName = (team) => {
+        const getFlag = (cc) => {
+          return cc.length == 0
+          ? "🏳️"
+          : String.fromCodePoint(
+            cc.codePointAt(0) - 0x41 + 0x1F1E6,
+            cc.codePointAt(1) - 0x41 + 0x1F1E6
+          );
+        };
+
+        const players = (team == TEAM1V) ? match.info.team1 : match.info.team2;
+
+        return players.map((t) => getFlag(t.country) + " " + t.player).join(" & ");
+      }
+
+      const renderTeams = () => {
+        document.getElementById("team-left").innerText = getTeamName(!switched ? TEAM1V : TEAM2V);
+        document.getElementById("team-right").innerText = getTeamName(!switched ? TEAM2V : TEAM1V);
+      }
+
+      const renderScores = () => {
+        const currentGame = match.games.slice(-1)[0] ?? { points: [] };
+
+        const score1 = currentGame.points.filter((p) => p == TEAM1V).length;
+        const score2 = currentGame.points.filter((p) => p == TEAM2V).length;
+
+        document.getElementById("score-left").innerText = (!switched ? score1 : score2);
+        document.getElementById("score-right").innerText = (!switched ? score2 : score1);
+      }
+
+      const renderSets = () => {
+        const lastPoints = match.games.slice(0, -1).map((g) => g.points.slice(-1)[0]);
+
+        const set1 = lastPoints.filter((p) => p == TEAM1V).length;
+        const set2 = lastPoints.filter((p) => p == TEAM2V).length;
+
+        document.getElementById("set-left").innerText = (!switched ? set1 : set2);
+        document.getElementById("set-right").innerText = (!switched ? set2 : set1);
+      }
+
+      const fillCountries = () => {
+        const json = JSON.parse(COUNTRIES);
+        
+        [].forEach.call(
+          document.getElementsByClassName("countries"),
+          (select) => {
+            // Manually add most commonly used countries on top
+            const cn = document.createElement("option");
+            cn.value = "CN";
+            cn.innerHTML = "🇨🇳 China";
+
+            const de = document.createElement("option");
+            de.value = "DE";
+            de.innerHTML = "🇩🇪 Germany";
+
+            const ina = document.createElement("option");
+            ina.value = "ID";
+            ina.innerHTML = "🇮🇩 Indonesia";
+
+            const tw = document.createElement("option");
+            tw.value = "TW";
+            tw.innerHTML = "🇹🇼 Taiwan";
+
+            const sep = document.createElement("option");
+            sep.value = "";
+            sep.innerHTML = "----------";
+            sep.disabled = true;
+
+            select.append(cn);
+            select.append(de);
+            select.append(ina);
+            select.append(tw);
+            select.append(sep);
+
+            select.value = "DE";
+            
+            json.map((c) => {
+              let option = document.createElement("option");
+
+              option.value = c.code.toUpperCase();
+              option.innerHTML = c.emoji + " " + c.name;
+
+              select.append(option);
+            });
+          }
+        );
+      }
+
+      const initTransmit = (callback) => {
+        fetch(window.location.origin + "/api/", {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          credentials: "include",
+          body: JSON.stringify({ action: "new" }),
+        })
+          .then(res => res.json())
+          .then(res => { matchUuid = res.match })
+          .finally(callback);
+      }
+
+      const transmit = (callback) => {
+        if (matchUuid == "")
+          return;
+        
+        fetch(window.location.origin + "/api/", {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            action: "update",
+            match: matchUuid,
+            data: match
+          })
+        })
+          .finally(callback);
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        fillCountries();
+      });
+    </script>
+  </body>
+</html>

@@ -278,12 +278,22 @@ func handleClient(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{
 			Name:  COOKIE_NAME,
 			Value: randstr.String(TOKEN_LENGTH),
+			Path:  "/",
 		})
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	t, ok := templates["client.html"]
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
-	// todo: send back client HTML/CSS/JS file(s)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+	if err := t.Execute(w, nil); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -308,7 +318,6 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	if err := t.Execute(w, matches); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		return
 	}
 }
 

@@ -25,3 +25,9 @@ func (u *UnixTime) UnmarshalJSON(b []byte) error {
 func (u UnixTime) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf("%d", (u.Time.Unix()))), nil
 }
+
+// Returns true if UnixTime is 0, meaning a time.Time of
+// 1970-01-01 01:00:00 +0100 CET
+func (u UnixTime) IsZero() bool {
+	return u.Time.Equal(time.Unix(0, 0))
+}

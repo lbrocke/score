@@ -163,7 +163,7 @@ func count(slice []Team, team Team) int {
 	return cnt
 }
 
-func validateGames(games []Game, mode Mode) error {
+func validateGames(games []Game, mode Mode, endTime UnixTime) error {
 	winPoints := numWinPoints(mode)
 	tiePoints := numTiePoints(mode)
 	winGames := numWinGames(mode)
@@ -224,9 +224,10 @@ func validateGames(games []Game, mode Mode) error {
 		numWinsTeam1 := count(winner, Team1)
 		numWinsTeam2 := count(winner, Team2)
 
-		// If there is a winner for this match, then no later games must exist
+		// If there is a winner for this match, then no later games must exist.
+		// Also, the end time must be set.
 		if (numWinsTeam1 == winGames && numWinsTeam2 < winGames || numWinsTeam2 == winGames && numWinsTeam1 < winGames) &&
-			(len(games) > i+1) {
+			(len(games) > i+1 || endTime.IsZero()) {
 			return errors.New(ERR_INVALID_GAME)
 		}
 	}
@@ -264,11 +265,15 @@ func (match *Match) validate() error {
 		return errors.New(ERR_INVALID_TEAMS)
 	}
 
-	if !match.Info.Start.Time.Before(match.Info.End.Time) {
+	if match.Info.Start.IsZero() {
 		return errors.New(ERR_INVALID_TIMES)
 	}
 
-	if err := validateGames(match.Games, match.Info.Mode); err != nil {
+	if !match.Info.End.IsZero() && !match.Info.Start.Time.Before(match.Info.End.Time) {
+		return errors.New(ERR_INVALID_TIMES)
+	}
+
+	if err := validateGames(match.Games, match.Info.Mode, match.Info.End); err != nil {
 		return err
 	}
 
@@ -428,8 +433,18 @@ func (m *Match) determineStats() {
 		}
 	}
 
+	if m.Info.End.IsZero() {
+		m.Info.End.Time = time.Now()
+	}
+
+	m.Duration = int(m.Info.End.Sub(m.Info.Start.Time).Round(time.Minute).Minutes())
+	if m.Duration < 0 {
+		// It is possible that the Start date is set to some future date by the client
+		// and the end date set to time.Now() by the parser. This results in a negative duration.
+		m.Duration = 0
+	}
+
 	// Calculate match statistics based on game statistics
-	m.Duration = int(m.Info.End.Time.Sub(m.Info.Start.Time).Round(time.Minute).Minutes())
 	m.PointsPlayed = calculatePointsPlayedInMatch(m.Games)
 	m.Team1PointsWon = calculatePointsWonInMatch(m.Games, Team1)
 	m.Team1ConsPoints = calculateConsecutivePointsInMatch(m.Games, Team1)

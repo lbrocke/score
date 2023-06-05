@@ -29,12 +29,12 @@ func max(a int, b int) int {
 	}
 }
 
-type Team int
+type TeamID int
 
 const (
-	Unknown Team = 0
-	Team1   Team = 1
-	Team2   Team = 2
+	Unknown TeamID = 0
+	Team1   TeamID = 1
+	Team2   TeamID = 2
 )
 
 type Mode int
@@ -100,58 +100,7 @@ func numMaxGames(mode Mode) int {
 	}
 }
 
-type Player struct {
-	Country string `json:"country"`
-	Player  string `json:"player"`
-}
-
-type MatchInfo struct {
-	Mode  Mode     `json:"mode"`
-	Team1 []Player `json:"team1"`
-	Team2 []Player `json:"team2"`
-	Start UnixTime `json:"start"`
-	End   UnixTime `json:"end"`
-}
-
-type Game struct {
-	Points          []Team `json:"points"`
-	Winner          Team   `json:"-"`
-	PointsPlayed    int    `json:"-"`
-	Team1PointsWon  int    `json:"-"`
-	Team1ConsPoints int    `json:"-"`
-	Team1GamePoints int    `json:"-"`
-	Team2PointsWon  int    `json:"-"`
-	Team2ConsPoints int    `json:"-"`
-	Team2GamePoints int    `json:"-"`
-}
-
-type Match struct {
-	Info            MatchInfo `json:"info"`
-	Games           []Game    `json:"games"`
-	Winner          Team      `json:"-"`
-	Duration        int       `json:"-"`
-	PointsPlayed    int       `json:"-"`
-	Team1PointsWon  int       `json:"-"`
-	Team1ConsPoints int       `json:"-"`
-	Team1GamePoints int       `json:"-"`
-	Team2PointsWon  int       `json:"-"`
-	Team2ConsPoints int       `json:"-"`
-	Team2GamePoints int       `json:"-"`
-}
-
-func isValidMode(mode Mode) bool {
-	return mode == Mode11 || mode == Mode21
-}
-
-func isValidCountry(country string) bool {
-	return countries.ByName(country) != countries.Unknown
-}
-
-func isValidName(name string) bool {
-	return len(name) != 0
-}
-
-func count(slice []Team, team Team) int {
+func count(slice []TeamID, team TeamID) int {
 	cnt := 0
 
 	for _, val := range slice {
@@ -163,61 +112,180 @@ func count(slice []Team, team Team) int {
 	return cnt
 }
 
-func validateGames(games []Game, mode Mode, endTime UnixTime) error {
-	winPoints := numWinPoints(mode)
-	tiePoints := numTiePoints(mode)
-	winGames := numWinGames(mode)
-	maxGames := numMaxGames(mode)
+type Country string
+type PlayerName string
 
-	var winner []Team
+type Player struct {
+	Country Country    `json:"country"`
+	Player  PlayerName `json:"player"`
+}
 
-	if len(games) > maxGames {
-		return errors.New(ERR_INVALID_GAME)
+type Team []Player
+
+type MatchInfo struct {
+	Mode  Mode     `json:"mode"`
+	Team1 Team     `json:"team1"`
+	Team2 Team     `json:"team2"`
+	Start UnixTime `json:"start"`
+	End   UnixTime `json:"end"`
+}
+
+type Game struct {
+	Points          []TeamID `json:"points"`
+	Winner          TeamID   `json:"-"`
+	PointsPlayed    int      `json:"-"`
+	Team1PointsWon  int      `json:"-"`
+	Team1ConsPoints int      `json:"-"`
+	Team1GamePoints int      `json:"-"`
+	Team2PointsWon  int      `json:"-"`
+	Team2ConsPoints int      `json:"-"`
+	Team2GamePoints int      `json:"-"`
+}
+
+type Match struct {
+	Info            MatchInfo `json:"info"`
+	Games           []Game    `json:"games"`
+	Winner          TeamID    `json:"-"`
+	Duration        int       `json:"-"`
+	PointsPlayed    int       `json:"-"`
+	Team1PointsWon  int       `json:"-"`
+	Team1ConsPoints int       `json:"-"`
+	Team1GamePoints int       `json:"-"`
+	Team2PointsWon  int       `json:"-"`
+	Team2ConsPoints int       `json:"-"`
+	Team2GamePoints int       `json:"-"`
+}
+
+func (c Country) isValid() bool {
+	return countries.ByName(string(c)) != countries.Unknown
+}
+
+func (n PlayerName) isValid() bool {
+	return len(string(n)) != 0
+}
+
+func (p Player) isValid() bool {
+	return p.Country.isValid() && p.Player.isValid()
+}
+
+func (m Mode) isValid() bool {
+	return m == Mode11 || m == Mode21
+}
+
+func (t Team) isValid() bool {
+	for _, player := range t {
+		if !player.isValid() {
+			return false
+		}
 	}
 
-	for i, game := range games {
-		scoreTeam1 := 0
-		scoreTeam2 := 0
+	return true
+}
 
-		for j, point := range game.Points {
-			// check if point was given to either Team1 or Team2
-			if !(point == Team1 || point == Team2) {
+func (m MatchInfo) validate() error {
+	if !m.Mode.isValid() {
+		return errors.New(ERR_INVALID_MODE)
+	}
+
+	if !m.Team1.isValid() || !m.Team2.isValid() {
+		return errors.New(ERR_INVALID_TEAMS)
+	}
+
+	if len(m.Team1) != len(m.Team2) || (len(m.Team1) != 1 && len(m.Team1) != 2) {
+		return errors.New(ERR_INVALID_TEAMS)
+	}
+
+	if m.Start.IsZero() {
+		return errors.New(ERR_INVALID_TIMES)
+	}
+
+	// m.End is allowed to be zero for running matches
+	if !m.End.IsZero() && !m.Start.Time.Before(m.End.Time) {
+		return errors.New(ERR_INVALID_TIMES)
+	}
+
+	return nil
+}
+
+func (g *Game) validate(mode Mode, endTime UnixTime) error {
+	winPoints := numWinPoints(mode)
+	tiePoints := numTiePoints(mode)
+
+	scoreTeam1 := 0
+	scoreTeam2 := 0
+
+	for j, point := range g.Points {
+		if !(point == Team1 || point == Team2) {
+			return errors.New(ERR_INVALID_POINT)
+		}
+
+		if point == Team1 {
+			scoreTeam1++
+		} else if point == Team2 {
+			scoreTeam2++
+		}
+
+		// check if Team1 has won
+		if scoreTeam1 == tiePoints || (scoreTeam1 >= winPoints && scoreTeam1-scoreTeam2 >= 2) {
+			g.Winner = Team1
+
+			// check if points were counted afterwards
+			if j != len(g.Points)-1 {
 				return errors.New(ERR_INVALID_POINT)
 			}
 
-			if point == Team1 {
-				scoreTeam1++
-			} else if point == Team2 {
-				scoreTeam2++
-			}
-
-			// check if Team1 has won
-			if scoreTeam1 == tiePoints || (scoreTeam1 >= winPoints && scoreTeam1-scoreTeam2 >= 2) {
-				winner = append(winner, Team1)
-
-				// check if points were counted afterwards
-				if j != len(game.Points)-1 {
-					return errors.New(ERR_INVALID_POINT)
-				}
-
-				break
-			}
-
-			// check if Team2 has won
-			if scoreTeam2 == tiePoints || (scoreTeam2 >= winPoints && scoreTeam2-scoreTeam1 >= 2) {
-				winner = append(winner, Team2)
-
-				// check if points were counted afterwards
-				if j != len(game.Points)-1 {
-					return errors.New(ERR_INVALID_POINT)
-				}
-
-				break
-			}
+			break
 		}
 
+		// check if Team2 has won
+		if scoreTeam2 == tiePoints || (scoreTeam2 >= winPoints && scoreTeam2-scoreTeam1 >= 2) {
+			g.Winner = Team2
+
+			// check if points were counted afterwards
+			if j != len(g.Points)-1 {
+				return errors.New(ERR_INVALID_POINT)
+			}
+
+			break
+		}
+	}
+
+	g.Team1PointsWon = scoreTeam1
+	g.Team2PointsWon = scoreTeam2
+
+	g.PointsPlayed = scoreTeam1 + scoreTeam2
+
+	g.Team1ConsPoints = calculateConsecutivePointsInGame(g.Points, Team1)
+	g.Team2ConsPoints = calculateConsecutivePointsInGame(g.Points, Team2)
+
+	g.Team1GamePoints = calculateGamePointsInGame(g.Points, Team1, mode)
+	g.Team2GamePoints = calculateGamePointsInGame(g.Points, Team2, mode)
+
+	return nil
+}
+
+func validateGames(match *Match, mode Mode, endTime UnixTime) error {
+	winGames := numWinGames(mode)
+	maxGames := numMaxGames(mode)
+
+	if len(match.Games) > maxGames {
+		return errors.New(ERR_INVALID_GAME)
+	}
+
+	// Validate and calculate statistics for each game
+	for i := range match.Games {
+		if err := (&match.Games[i]).validate(mode, endTime); err != nil {
+			return err
+		}
+	}
+
+	var winner []TeamID
+
+	for i, game := range match.Games {
+		winner = append(winner, game.Winner)
+
 		// If there is no winner for this game yet, then the game is still running and no later game must exist
-		if len(winner) < i+1 && len(games) > i+1 {
+		if len(winner) < i+1 && len(match.Games) > i+1 {
 			return errors.New(ERR_INVALID_GAME)
 		}
 
@@ -227,7 +295,7 @@ func validateGames(games []Game, mode Mode, endTime UnixTime) error {
 		// If there is a winner for this match, then no later games must exist.
 		// Also, the end time must be set.
 		if (numWinsTeam1 == winGames && numWinsTeam2 < winGames || numWinsTeam2 == winGames && numWinsTeam1 < winGames) &&
-			(len(games) > i+1 || endTime.IsZero()) {
+			(len(match.Games) > i+1 || endTime.IsZero()) {
 			return errors.New(ERR_INVALID_GAME)
 		}
 	}
@@ -235,58 +303,48 @@ func validateGames(games []Game, mode Mode, endTime UnixTime) error {
 	return nil
 }
 
-func (match *Match) validate() error {
-	if !isValidMode(match.Info.Mode) {
-		return errors.New(ERR_INVALID_MODE)
-	}
-
-	for _, player := range match.Info.Team1 {
-		if !isValidCountry(player.Country) {
-			return errors.New(ERR_INVALID_COUNTRY)
-		}
-
-		if !isValidName(player.Player) {
-			return errors.New(ERR_INVALID_NAME)
-		}
-	}
-
-	for _, player := range match.Info.Team2 {
-		if !isValidCountry(player.Country) {
-			return errors.New(ERR_INVALID_COUNTRY)
-		}
-
-		if !isValidName(player.Player) {
-			return errors.New(ERR_INVALID_NAME)
-		}
-	}
-
-	if !(len(match.Info.Team1) == len(match.Info.Team2) &&
-		(len(match.Info.Team1) == 1 || len(match.Info.Team1) == 2)) {
-		return errors.New(ERR_INVALID_TEAMS)
-	}
-
-	if match.Info.Start.IsZero() {
-		return errors.New(ERR_INVALID_TIMES)
-	}
-
-	if !match.Info.End.IsZero() && !match.Info.Start.Time.Before(match.Info.End.Time) {
-		return errors.New(ERR_INVALID_TIMES)
-	}
-
-	if err := validateGames(match.Games, match.Info.Mode, match.Info.End); err != nil {
+func (m *Match) validate() error {
+	if err := m.Info.validate(); err != nil {
 		return err
+	}
+
+	if err := validateGames(m, m.Info.Mode, m.Info.End); err != nil {
+		return err
+	}
+
+	if m.Info.End.IsZero() {
+		m.Info.End.Time = time.Now()
+	}
+
+	m.Duration = int(m.Info.End.Sub(m.Info.Start.Time).Round(time.Minute).Minutes())
+	if m.Duration < 0 {
+		// It is possible that the Start date is set to some future date by the client
+		// and the end date set to time.Now() by the parser. This results in a negative duration.
+		m.Duration = 0
+	}
+
+	m.PointsPlayed = calculatePointsPlayedInMatch(m.Games)
+	m.Team1PointsWon = calculatePointsWonInMatch(m.Games, Team1)
+	m.Team1ConsPoints = calculateConsecutivePointsInMatch(m.Games, Team1)
+	m.Team1GamePoints = calculateGamePointsInMatch(m.Games, Team1)
+	m.Team2PointsWon = calculatePointsWonInMatch(m.Games, Team2)
+	m.Team2ConsPoints = calculateConsecutivePointsInMatch(m.Games, Team2)
+	m.Team2GamePoints = calculateGamePointsInMatch(m.Games, Team2)
+
+	if calculateGamesWonInMatch(m.Games, Team1) == numWinGames(m.Info.Mode) {
+		m.Winner = Team1
+	} else if calculateGamesWonInMatch(m.Games, Team2) == numWinGames(m.Info.Mode) {
+		m.Winner = Team2
+	} else {
+		m.Winner = Unknown
 	}
 
 	return nil
 }
 
-func calculatePointsInGame(points []Team, team Team) int {
-	return count(points, team)
-}
-
 // Calculates the maximum of consecutive points the given team has
 // scored, before the opponent scored again.
-func calculateConsecutivePointsInGame(points []Team, team Team) int {
+func calculateConsecutivePointsInGame(points []TeamID, team TeamID) int {
 	maxConsPoints := 0
 	curConsPoints := 0
 
@@ -317,7 +375,7 @@ func calculateConsecutivePointsInGame(points []Team, team Team) int {
 //	21 : 21
 //	22 : 21  <- Game point for A
 //	23 : 21  <- A wins
-func calculateGamePointsInGame(points []Team, team Team, mode Mode) int {
+func calculateGamePointsInGame(points []TeamID, team TeamID, mode Mode) int {
 	gamePoints := 0
 
 	ownScore := 0
@@ -352,7 +410,7 @@ func calculatePointsPlayedInMatch(games []Game) int {
 	return sum
 }
 
-func calculatePointsWonInMatch(games []Game, team Team) int {
+func calculatePointsWonInMatch(games []Game, team TeamID) int {
 	sum := 0
 
 	for _, game := range games {
@@ -366,7 +424,7 @@ func calculatePointsWonInMatch(games []Game, team Team) int {
 	return sum
 }
 
-func calculateConsecutivePointsInMatch(games []Game, team Team) int {
+func calculateConsecutivePointsInMatch(games []Game, team TeamID) int {
 	maxCons := 0
 
 	for _, game := range games {
@@ -380,7 +438,7 @@ func calculateConsecutivePointsInMatch(games []Game, team Team) int {
 	return maxCons
 }
 
-func calculateGamePointsInMatch(games []Game, team Team) int {
+func calculateGamePointsInMatch(games []Game, team TeamID) int {
 	sum := 0
 
 	for _, game := range games {
@@ -394,8 +452,8 @@ func calculateGamePointsInMatch(games []Game, team Team) int {
 	return sum
 }
 
-func calculateGamesWonInMatch(games []Game, team Team) int {
-	winners := []Team{}
+func calculateGamesWonInMatch(games []Game, team TeamID) int {
+	winners := []TeamID{}
 
 	for _, game := range games {
 		winners = append(winners, game.Winner)
@@ -404,78 +462,16 @@ func calculateGamesWonInMatch(games []Game, team Team) int {
 	return count(winners, team)
 }
 
-// Calculates game/match winners and statistics such as consecutive points won,
-// game points played etc.
-// This function assumes that the match is valid, this should be checked using
-// validate() before.
-func (m *Match) determineStats() {
-	// Calculate all game statistics first
-	for i, game := range m.Games {
-		m.Games[i].Team1PointsWon = calculatePointsInGame(game.Points, Team1)
-		m.Games[i].Team1ConsPoints = calculateConsecutivePointsInGame(game.Points, Team1)
-		m.Games[i].Team1GamePoints = calculateGamePointsInGame(game.Points, Team1, m.Info.Mode)
-
-		m.Games[i].Team2PointsWon = calculatePointsInGame(game.Points, Team2)
-		m.Games[i].Team2ConsPoints = calculateConsecutivePointsInGame(game.Points, Team2)
-		m.Games[i].Team2GamePoints = calculateGamePointsInGame(game.Points, Team2, m.Info.Mode)
-
-		m.Games[i].PointsPlayed = m.Games[i].Team1PointsWon + m.Games[i].Team2PointsWon
-
-		scoreTeam1 := m.Games[i].Team1PointsWon
-		scoreTeam2 := m.Games[i].Team2PointsWon
-
-		if scoreTeam1 == numTiePoints(m.Info.Mode) || (scoreTeam1 >= numWinPoints(m.Info.Mode) && scoreTeam1-scoreTeam2 >= 2) {
-			m.Games[i].Winner = Team1
-		} else if scoreTeam2 == numTiePoints(m.Info.Mode) || (scoreTeam2 >= numWinPoints(m.Info.Mode) && scoreTeam2-scoreTeam1 >= 2) {
-			m.Games[i].Winner = Team2
-		} else {
-			m.Games[i].Winner = Unknown
-		}
-	}
-
-	if m.Info.End.IsZero() {
-		m.Info.End.Time = time.Now()
-	}
-
-	m.Duration = int(m.Info.End.Sub(m.Info.Start.Time).Round(time.Minute).Minutes())
-	if m.Duration < 0 {
-		// It is possible that the Start date is set to some future date by the client
-		// and the end date set to time.Now() by the parser. This results in a negative duration.
-		m.Duration = 0
-	}
-
-	// Calculate match statistics based on game statistics
-	m.PointsPlayed = calculatePointsPlayedInMatch(m.Games)
-	m.Team1PointsWon = calculatePointsWonInMatch(m.Games, Team1)
-	m.Team1ConsPoints = calculateConsecutivePointsInMatch(m.Games, Team1)
-	m.Team1GamePoints = calculateGamePointsInMatch(m.Games, Team1)
-	m.Team2PointsWon = calculatePointsWonInMatch(m.Games, Team2)
-	m.Team2ConsPoints = calculateConsecutivePointsInMatch(m.Games, Team2)
-	m.Team2GamePoints = calculateGamePointsInMatch(m.Games, Team2)
-
-	if calculateGamesWonInMatch(m.Games, Team1) == numWinGames(m.Info.Mode) {
-		m.Winner = Team1
-	} else if calculateGamesWonInMatch(m.Games, Team2) == numWinGames(m.Info.Mode) {
-		m.Winner = Team2
-	} else {
-		m.Winner = Unknown
-	}
-}
-
-func Parse(data string, validate bool) (Match, error) {
+func Parse(data string) (Match, error) {
 	var match Match
 
 	if err := json.Unmarshal([]byte(data), &match); err != nil {
 		return match, fmt.Errorf("%s %s", ERR_INVALID_JSON, err.Error())
 	}
 
-	if validate {
-		if err := match.validate(); err != nil {
-			return match, fmt.Errorf("%s: %s", ERR_INVALID_MATCH, err.Error())
-		}
+	if err := match.validate(); err != nil {
+		return match, fmt.Errorf("%s: %s", ERR_INVALID_MATCH, err.Error())
 	}
-
-	match.determineStats()
 
 	return match, nil
 }

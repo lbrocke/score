@@ -71,8 +71,8 @@ func initTemplates() error {
 		"add": func(a int, b int) int {
 			return a + b
 		},
-		"flag": func(country string) string {
-			return countries.ByName(country).Emoji()
+		"flag": func(country parser.Country) string {
+			return countries.ByName(string(country)).Emoji()
 		},
 	}
 
@@ -191,7 +191,7 @@ func getRecentMatches() ([]parser.Match, error) {
 
 		rows.Scan(&json)
 
-		match, err := parser.Parse(json, false)
+		match, err := parser.Parse(json)
 		if err != nil {
 			continue
 		}
@@ -251,7 +251,7 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 		// Combine into JSON and let the parser unmarshal it into a struct
 		data, _ := json.Marshal(requestData.Data)
 
-		match, err := parser.Parse(string(data), true)
+		match, err := parser.Parse(string(data))
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return

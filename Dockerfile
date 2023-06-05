@@ -14,7 +14,7 @@ RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o score
 
 FROM alpine
 
-ENV SCORE_LISTEN=0.0.0.0:8080
+ENV SCORE_LISTEN=0.0.0.0:80
 
 WORKDIR /app
 

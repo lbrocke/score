@@ -40,7 +40,7 @@ func TestAxelsenVsChou(t *testing.T) {
 					"points": [2, 1, 1, 1, 1, 2, 2, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2, 1, 1, 2, 1, 2, 2, 1, 1, 2, 2, 1, 2, 1, 2, 1, 2, 2, 2, 2]
 				}
 			]
-		}`, true)
+		}`)
 
 	if err != nil {
 		t.Fatal(err.Error())

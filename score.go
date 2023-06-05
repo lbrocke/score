@@ -71,8 +71,8 @@ func initTemplates() error {
 		"add": func(a int, b int) int {
 			return a + b
 		},
-		"flag": func(country string) string {
-			return countries.ByName(country).Emoji()
+		"flag": func(country parser.Country) string {
+			return countries.ByName(string(country)).Emoji()
 		},
 	}
 

@@ -29,7 +29,7 @@ const (
 	ACTION_UPDATE = "update"
 
 	// name of SQLite database
-	DB_NAME = "score.sqlite"
+	DEFAULT_DB_PATH = "score.sqlite"
 
 	// path to templates
 	TEMPLATES = "tpl"
@@ -44,6 +44,7 @@ var (
 	//go:embed tpl/*
 	files     embed.FS
 	templates map[string]*template.Template
+	database  string
 )
 
 type APIRequestData struct {
@@ -93,7 +94,7 @@ func initTemplates() error {
 }
 
 func initDatabase() error {
-	db, err := sql.Open("sqlite3", DB_NAME)
+	db, err := sql.Open("sqlite3", database)
 	if err != nil {
 		return err
 	}
@@ -131,7 +132,7 @@ func createMatch(token string) (string, error) {
 		return "", errors.New("cannot generate match uuid")
 	}
 
-	db, err := sql.Open("sqlite3", DB_NAME)
+	db, err := sql.Open("sqlite3", database)
 	if err != nil {
 		return "", errors.New("cannot open database")
 	}
@@ -146,7 +147,7 @@ func createMatch(token string) (string, error) {
 }
 
 func updateMatch(raw string, m parser.Match, uuid string, token string) error {
-	db, err := sql.Open("sqlite3", DB_NAME)
+	db, err := sql.Open("sqlite3", database)
 	if err != nil {
 		return errors.New("cannot open database")
 	}
@@ -174,7 +175,7 @@ func updateMatch(raw string, m parser.Match, uuid string, token string) error {
 func getRecentMatches() ([]parser.Match, error) {
 	var matches []parser.Match
 
-	db, err := sql.Open("sqlite3", DB_NAME)
+	db, err := sql.Open("sqlite3", database)
 	if err != nil {
 		return matches, err
 	}
@@ -325,6 +326,12 @@ func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
 		log.Fatalln("Please provide the host/ip and port to listen on, e.g.\n\t$ score localhost:8080")
+	}
+
+	if path := os.Getenv("DB_PATH"); path != "" {
+		database = path
+	} else {
+		database = DEFAULT_DB_PATH
 	}
 
 	if err := initTemplates(); err != nil {

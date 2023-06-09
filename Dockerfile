@@ -15,6 +15,10 @@ RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o score
 FROM alpine
 
 ENV SCORE_LISTEN=0.0.0.0:80
+ENV DB_PATH=/data/score.sqlite
+
+RUN mkdir /app
+RUN mkdir /data
 
 WORKDIR /app
 

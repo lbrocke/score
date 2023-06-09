@@ -7,7 +7,9 @@ services:
     environment:
       # listen address of HTTP server inside container
       SCORE_LISTEN: 0.0.0.0:80
+      # Path to sqlite database inside container
+      DB_PATH: /data/score.sqlite
     ports:
       - "127.0.0.1:8080:80"
     volumes:
-      - ./score.sqlite:/app/score.sqlite
+      - ./data:/data

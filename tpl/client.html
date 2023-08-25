@@ -166,7 +166,7 @@
       </tr>
       <tr>
         <td>
-          <select id="team1country1" class="countries" autocomplete="off"></select>
+          <select id="team1country1" class="countries" autocomplete="off" onchange="onSelectCountry(1)"></select>
           <input id="team1name1" type="text" placeholder="Player 1" autocomplete="off">
           <br>
           <select id="team1country2" class="countries doublesonly" autocomplete="off" disabled></select>
@@ -174,7 +174,7 @@
         </td>
         <td>vs.</td>
         <td>
-          <select id="team2country1" class="countries" autocomplete="off"></select>
+          <select id="team2country1" class="countries" autocomplete="off" onchange="onSelectCountry(2)"></select>
           <input id="team2name1" type="text" placeholder="Player 1" autocomplete="off">
           <br>
           <select id="team2country2" class="countries doublesonly" autocomplete="off" disabled></select>
@@ -250,6 +250,10 @@
             el.disabled = isSingles;
           }
         );
+      }
+
+      const onSelectCountry = (team) => {
+        document.getElementById("team" + team + "country2").value = document.getElementById("team" + team + "country1").value;
       }
 
       const onPlay = () => {
